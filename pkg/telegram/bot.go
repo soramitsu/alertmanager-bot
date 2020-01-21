@@ -26,12 +26,16 @@ const (
 	commandHelp  = "/help"
 	commandChats = "/chats"
 
-	commandStatus     = "/status"
-	commandAlerts     = "/alerts"
-	commandSilences   = "/silences"
-	commandSilenceAdd = "/silence_add"
-	commandSilence    = "/silence"
-	commandSilenceDel = "/silence_del"
+	commandStatus     	= "/status"
+	commandAlerts     	= "/alerts"
+	commandSilences   	= "/silences"
+	commandMute 	  	= "/mute"
+	commandMuteDel    	= "/mute_del"
+	commandEnvironments	= "/environments"
+	commandProjects 	= "/projects"
+	commandSilenceAdd 	= "/silence_add"
+	commandSilence    	= "/silence"
+	commandSilenceDel 	= "/silence_del"
 
 	responseStart = "Hey, %s! I will now keep you up to date!\n" + commandHelp
 	responseStop  = "Alright, %s! I won't talk to you again.\n" + commandHelp
@@ -46,6 +50,10 @@ Available commands:
 ` + commandAlerts + ` - List all alerts.
 ` + commandSilences + ` - List all silences.
 ` + commandChats + ` - List all users and group chats that subscribed.
+` + commandMute + ` - Set mute to projects and/or environments.
+` + commandMuteDel + ` - Delete mute.
+` + commandEnvironments + ` - List all environments.
+` + commandProjects + ` - List all projects.
 `
 )
 
@@ -54,6 +62,8 @@ type BotChatStore interface {
 	List() ([]telebot.Chat, error)
 	Add(telebot.Chat) error
 	Remove(telebot.Chat) error
+	AddUserToProject(telebot.Chat, string) error
+	AddUserToEnvironment(telebot.Chat, string) error
 }
 
 // Bot runs the alertmanager telegram
@@ -184,6 +194,10 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan notify.WebhookMessage) er
 		commandStatus:   b.handleStatus,
 		commandAlerts:   b.handleAlerts,
 		commandSilences: b.handleSilences,
+		commandMute: b.handleMute,
+		commandMuteDel: b.handleMuteDel,
+		commandEnvironments: b.handleEnvironments,
+		commandProjects: b.handleProjects,
 	}
 
 	// init counters with 0
@@ -425,6 +439,22 @@ func (b *Bot) handleSilences(message telebot.Message) {
 	}
 
 	b.telegram.SendMessage(message.Chat, out, &telebot.SendOptions{ParseMode: telebot.ModeMarkdown})
+}
+
+func (b *Bot) handleMute(message telebot.Message) {
+
+}
+
+func (b *Bot) handleMuteDel(message telebot.Message) {
+
+}
+
+func (b *Bot) handleEnvironments(message telebot.Message) {
+
+}
+
+func (b *Bot) handleProjects(message telebot.Message) {
+
 }
 
 func (b *Bot) tmplAlerts(alerts ...*types.Alert) (string, error) {
