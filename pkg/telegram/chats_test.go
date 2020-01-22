@@ -42,15 +42,15 @@ func TestMain(m *testing.M) {
 }
 
 func TestAddUserToNewProject(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "kgusman"}
-	project := "iroha"
+	chat := telebot.Chat{ID:234223424, Username: "test"}
+	project := "some_project"
 	err := bot.chats.AddUserToProject(chat, project)
 	assert.Nil(t, err)
 }
 
 func TestAddUserToExistingProject(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "kgusman"}
-	project := "iroha"
+	chat := telebot.Chat{ID:234223424, Username: "test"}
+	project := "some_project"
 	err := bot.chats.AddUserToProject(chat, project)
 	assert.Nil(t, err)
 
@@ -59,20 +59,51 @@ func TestAddUserToExistingProject(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestAddUserToEnvironment(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "kgusman"}
-	environment := "stage1"
-	err := bot.chats.AddUserToEnvironment(chat, environment)
+func TestGetUserForExistingProject(t *testing.T) {
+	projectName := "some_project"
+	chat1 := telebot.Chat{ID: 232, Username: "test"}
+	err := bot.chats.AddUserToProject(chat1, projectName)
 	assert.Nil(t, err)
+
+	chat2 := telebot.Chat{ID:12, Username: "tess"}
+	err = bot.chats.AddUserToProject(chat2, projectName)
+	assert.Nil(t, err)
+
+	chats, err := bot.chats.GetUsersForProject(projectName)
+	assert.Nil(t, err)
+	assert.True(t, len(chats) == 2)
+	assert.True(t, chats[0].ID == chat1.ID)
+	assert.True(t, chats[1].ID == chat2.ID)
 }
 
-func TestAddUserToExistingEnvironment(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "kgusman"}
-	environment := "stage1"
-	err := bot.chats.AddUserToEnvironment(chat, environment)
+func TestGetUsersForUnknownProject(t *testing.T) {
+	projectName := "awesome_project"
+	chats, err := bot.chats.GetUsersForProject(projectName)
+	assert.Nil(t, err)
+	assert.True(t, len(chats) == 0)
+}
+
+func TestRemoveUserFromProject(t *testing.T) {
+	projectName := "awesomness_project"
+	chat1 := telebot.Chat{ID:12412, Username:"super_user"}
+	chat2 := telebot.Chat{ID:654, Username:"useeeer"}
+
+	err := bot.chats.AddUserToProject(chat1, projectName)
 	assert.Nil(t, err)
 
-	chat = telebot.Chat{ID:23243424, Username: "someone"}
-	err = bot.chats.AddUserToEnvironment(chat, environment)
+	err = bot.chats.AddUserToProject(chat2, projectName)
 	assert.Nil(t, err)
+
+	chats, err := bot.chats.GetUsersForProject(projectName)
+	assert.Nil(t, err)
+	assert.True(t, len(chats) == 2)
+
+	err = bot.chats.RemoveUserFromProject(chat2, projectName)
+	assert.Nil(t, err)
+
+	chats, err = bot.chats.GetUsersForProject(projectName)
+	assert.Nil(t, err)
+	assert.True(t, len(chats) == 1)
+	assert.True(t, chats[0].ID == chat1.ID)
+
 }

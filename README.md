@@ -76,6 +76,12 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 > Version: 0.4.0  
 > Uptime: 3 weeks 1 hour 17 minutes 19 seconds  
 
+
+
+###### /mute
+
+###### /muteDel
+
 ###### /help
 
 > I'm a Prometheus AlertManager Bot for Telegram. I will notify you about alerts.  
@@ -88,6 +94,8 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 > [/alerts](#alerts) - List all alerts.  
 > [/silences](#silences) - List all silences.  
 > [/chats](#chats) - List all users and group chats that subscribed.
+> [/mute](#mute) - Mute environments and/or projects.
+> [/muteDel](#muteDel) - Delete mute.
 
 ## Installation
 

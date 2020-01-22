@@ -50,7 +50,7 @@ Available commands:
 ` + commandAlerts + ` - List all alerts.
 ` + commandSilences + ` - List all silences.
 ` + commandChats + ` - List all users and group chats that subscribed.
-` + commandMute + ` - Set mute to projects and/or environments.
+` + commandMute + ` - Mute environments and/or projects.
 ` + commandMuteDel + ` - Delete mute.
 ` + commandEnvironments + ` - List all environments.
 ` + commandProjects + ` - List all projects.
@@ -64,6 +64,10 @@ type BotChatStore interface {
 	Remove(telebot.Chat) error
 	AddUserToProject(telebot.Chat, string) error
 	AddUserToEnvironment(telebot.Chat, string) error
+	GetUsersForProject(string) ([]telebot.Chat, error)
+	GetUsersForEnvironment(string) ([]telebot.Chat, error)
+	RemoveUserFromProject(telebot.Chat, string) error
+	RemoveUserFromEnvironment(telebot.Chat, string) error
 }
 
 // Bot runs the alertmanager telegram
