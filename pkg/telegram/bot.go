@@ -2,8 +2,10 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -55,7 +57,16 @@ Available commands:
 ` + commandEnvironments + ` - List all environments.
 ` + commandProjects + ` - List all projects.
 `
+	ProjectAndEnvironmentRegexp  = `/mute environment\[(\w+(\s*,\s*\w+)*)\],[ ]?project\[(\w+(\s*,\s*\w+)*)\]`
+	ProjectRegexp = `/mute project\[(\w+(\s*,\s*\w+)*)\]`
+	EnvironmentRegexp = `/mute environment\[(\w+(\s*,\s*\w+)*)\]`
+	EnvironmentValuesRegexp = `environment\[(.*?)\]`
+	ProjectValuesRegexp = `project\[(.*?)\]`
 )
+
+// TODO: get from docker-compose and add "other"
+var environmentsFromCompose = []string{"dev", "test", "stage1", "stage2", "prod", "other"}
+var projectsFromCompose =  []string{"iroha", "sora", "bakong", "other"}
 
 // BotChatStore is all the Bot needs to store and read
 type BotChatStore interface {
@@ -446,19 +457,50 @@ func (b *Bot) handleSilences(message telebot.Message) {
 }
 
 func (b *Bot) handleMute(message telebot.Message) {
+	envToAlarm, prToAlarm, err := parseMuteCommand(message.Text, environmentsFromCompose, projectsFromCompose)
+	if err != nil {
+		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to extract environments and projects... %v", err), nil)
+	}
+
+	if len(envToAlarm) > 0 {
+		for _, env := range envToAlarm {
+			err := b.chats.AddUserToEnvironment(message.Chat, env)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to environment", "err", err)
+				b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err), nil)
+			}
+		}
+	}
+
+	if len(prToAlarm) > 0 {
+		for _, pr := range prToAlarm {
+			err := b.chats.AddUserToProject(message.Chat, pr)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
+				b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to project... %v", err), nil)
+			}
+		}
+	}
+
+	if err := b.chats.Remove(message.Chat); err != nil {
+		level.Warn(b.logger).Log("msg", "failed to remove user from getting all notifications", "err", err)
+		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to remove user from getting all notifications... %v", err), nil)
+	}
+
+	b.telegram.SendMessage(message.Chat, "You were successfully subscriped to environments and/or projects", nil)
 
 }
 
 func (b *Bot) handleMuteDel(message telebot.Message) {
-
+	// TODO
 }
 
 func (b *Bot) handleEnvironments(message telebot.Message) {
-
+	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following environments are available: %s", environmentsFromCompose), nil)
 }
 
 func (b *Bot) handleProjects(message telebot.Message) {
-
+	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following projects are available: %s", projectsFromCompose), nil)
 }
 
 func (b *Bot) tmplAlerts(alerts ...*types.Alert) (string, error) {
@@ -488,4 +530,52 @@ func (b *Bot) truncateMessage(str string) string {
 		return truncateMsg
 	}
 	return truncateMsg
+}
+
+func parseMuteCommand(text string, environments []string, projects []string) ([]string, []string ,error) {
+	matchProjectAndEnvironment, err := regexp.MatchString(ProjectAndEnvironmentRegexp, text)
+	if err != nil {
+		return []string{}, []string{}, err
+	}
+
+	regexProject, err := regexp.Compile(ProjectValuesRegexp)
+	regexEnvironemnt, err := regexp.Compile(EnvironmentValuesRegexp)
+	if matchProjectAndEnvironment {
+		env := strings.Replace(regexEnvironemnt.FindStringSubmatch(text)[1], " ", "", -1)
+		environmentsToMute := strings.Split(env, ",")
+
+		p := strings.Replace(regexProject.FindStringSubmatch(text)[1], " ", "", -1)
+		projectsToMute := strings.Split(p, ",")
+		return arrayDifference(environments, environmentsToMute), arrayDifference(projects, projectsToMute), nil
+	}
+
+	matchEnvironment, err := regexp.MatchString(EnvironmentRegexp, text)
+	if matchEnvironment {
+		env := strings.Replace(regexEnvironemnt.FindStringSubmatch(text)[1], " ", "", -1)
+		environmentsToMute := strings.Split(env, ",")
+		return arrayDifference(environments, environmentsToMute), []string{}, nil
+	}
+
+	matchProject, err := regexp.MatchString(ProjectRegexp, text)
+	if matchProject {
+		p := strings.Replace(regexProject.FindStringSubmatch(text)[1], " ", "", -1)
+		projectsToRemove := strings.Split(p, ",")
+		return []string{}, arrayDifference(projects, projectsToRemove), nil
+	}
+
+	return []string{}, []string{}, errors.New("No match were found")
+}
+
+func arrayDifference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }
