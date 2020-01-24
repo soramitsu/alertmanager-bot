@@ -64,10 +64,6 @@ Available commands:
 	ProjectValuesRegexp = `project\[(.*?)\]`
 )
 
-// TODO: get from docker-compose and add "other"
-var environmentsFromCompose = []string{"dev", "test", "stage1", "stage2", "prod", "other"}
-var projectsFromCompose =  []string{"iroha", "sora", "bakong", "other"}
-
 // BotChatStore is all the Bot needs to store and read
 type BotChatStore interface {
 	List() ([]telebot.Chat, error)
@@ -85,6 +81,8 @@ type BotChatStore interface {
 type Bot struct {
 	addr         string
 	admins       []int // must be kept sorted
+	environments	[]string
+	projects		[]string
 	alertmanager *url.URL
 	templates    *template.Template
 	chats        BotChatStore
@@ -183,6 +181,22 @@ func WithExtraAdmins(ids ...int) BotOption {
 	return func(b *Bot) {
 		b.admins = append(b.admins, ids...)
 		sort.Ints(b.admins)
+	}
+}
+
+// WithEnvironments allows to define environments that are monitored by Prometheus
+func WithEnvironments(environmentsToUse ...string) BotOption {
+	return func(b *Bot) {
+		b.environments = append(b.environments, environmentsToUse...)
+		b.environments = append(b.environments, "other")
+	}
+}
+
+// WithProjects allows to define projects that are monitored by Prometheus
+func WithProjects(projectsToUse ...string) BotOption {
+	return func(b *Bot) {
+		b.projects = append(b.projects, projectsToUse...)
+		b.projects = append(b.projects, "other")
 	}
 }
 
@@ -301,32 +315,75 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMes
 		case <-ctx.Done():
 			return nil
 		case w := <-webhooks:
+			for _, alert := range w.Alerts {
+				alertEnvironmentName := alert.Labels["environment"]
+				alertProjectName := alert.Labels["project"]
+
+				environmentChats, err := b.chats.GetUsersForEnvironment(alertEnvironmentName)
+				if err != nil {
+					level.Error(b.logger).Log("msg", "failed to get users for provided environment", "err", err)
+				}
+
+				projectChats, err := b.chats.GetUsersForProject(alertProjectName)
+				if err != nil {
+					level.Error(b.logger).Log("msg", "failed to get users for provided project", "err", err)
+				}
+
+				uniqueChats := getUniqueChats(append(environmentChats, projectChats...))
+
+				dataToSend := &template.Data{
+					Receiver:          w.Receiver,
+					Status:            w.Status,
+					Alerts:            []template.Alert{alert},
+					GroupLabels:       w.GroupLabels,
+					CommonLabels:      w.CommonLabels,
+					CommonAnnotations: w.CommonAnnotations,
+					ExternalURL:       w.ExternalURL,
+				}
+
+				out, err := b.templates.ExecuteHTMLString(`{{ template "telegram.default" . }}`, dataToSend)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
+					continue
+				}
+
+				for _, chat := range uniqueChats {
+					err = b.telegram.SendMessage(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
+					if err != nil {
+						level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
+					}
+				}
+
+			}
+
 			chats, err := b.chats.List()
 			if err != nil {
 				level.Error(b.logger).Log("msg", "failed to get chat list from store", "err", err)
 				continue
 			}
 
-			data := &template.Data{
-				Receiver:          w.Receiver,
-				Status:            w.Status,
-				Alerts:            w.Alerts,
-				GroupLabels:       w.GroupLabels,
-				CommonLabels:      w.CommonLabels,
-				CommonAnnotations: w.CommonAnnotations,
-				ExternalURL:       w.ExternalURL,
-			}
+			if len(chats) > 0 {
+				data := &template.Data{
+					Receiver:          w.Receiver,
+					Status:            w.Status,
+					Alerts:            w.Alerts,
+					GroupLabels:       w.GroupLabels,
+					CommonLabels:      w.CommonLabels,
+					CommonAnnotations: w.CommonAnnotations,
+					ExternalURL:       w.ExternalURL,
+				}
 
-			out, err := b.templates.ExecuteHTMLString(`{{ template "telegram.default" . }}`, data)
-			if err != nil {
-				level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
-				continue
-			}
-
-			for _, chat := range chats {
-				err = b.telegram.SendMessage(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
+				out, err := b.templates.ExecuteHTMLString(`{{ template "telegram.default" . }}`, data)
 				if err != nil {
-					level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
+					level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
+					continue
+				}
+
+				for _, chat := range chats {
+					err = b.telegram.SendMessage(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
+					if err != nil {
+						level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
+					}
 				}
 			}
 		}
@@ -457,9 +514,10 @@ func (b *Bot) handleSilences(message telebot.Message) {
 }
 
 func (b *Bot) handleMute(message telebot.Message) {
-	envToAlarm, prToAlarm, err := parseMuteCommand(message.Text, environmentsFromCompose, projectsFromCompose)
+	envToAlarm, prToAlarm, err := parseMuteCommand(message.Text, b.environments, b.projects)
 	if err != nil {
-		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to extract environments and projects... %v", err), nil)
+		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err), nil)
+		return
 	}
 
 	if len(envToAlarm) > 0 {
@@ -487,7 +545,7 @@ func (b *Bot) handleMute(message telebot.Message) {
 		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to remove user from getting all notifications... %v", err), nil)
 	}
 
-	b.telegram.SendMessage(message.Chat, "You were successfully subscriped to environments and/or projects", nil)
+	b.telegram.SendMessage(message.Chat, "You were successfully subscribed to environments and/or projects", nil)
 
 }
 
@@ -496,11 +554,11 @@ func (b *Bot) handleMuteDel(message telebot.Message) {
 }
 
 func (b *Bot) handleEnvironments(message telebot.Message) {
-	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following environments are available: %s", environmentsFromCompose), nil)
+	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following environments are available: %s", b.environments), nil)
 }
 
 func (b *Bot) handleProjects(message telebot.Message) {
-	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following projects are available: %s", projectsFromCompose), nil)
+	b.telegram.SendMessage(message.Chat, fmt.Sprintf("The following projects are available: %s", b.projects), nil)
 }
 
 func (b *Bot) tmplAlerts(alerts ...*types.Alert) (string, error) {
@@ -539,9 +597,9 @@ func parseMuteCommand(text string, environments []string, projects []string) ([]
 	}
 
 	regexProject, err := regexp.Compile(ProjectValuesRegexp)
-	regexEnvironemnt, err := regexp.Compile(EnvironmentValuesRegexp)
+	regexEnvironment, err := regexp.Compile(EnvironmentValuesRegexp)
 	if matchProjectAndEnvironment {
-		env := strings.Replace(regexEnvironemnt.FindStringSubmatch(text)[1], " ", "", -1)
+		env := strings.Replace(regexEnvironment.FindStringSubmatch(text)[1], " ", "", -1)
 		environmentsToMute := strings.Split(env, ",")
 
 		p := strings.Replace(regexProject.FindStringSubmatch(text)[1], " ", "", -1)
@@ -551,7 +609,7 @@ func parseMuteCommand(text string, environments []string, projects []string) ([]
 
 	matchEnvironment, err := regexp.MatchString(EnvironmentRegexp, text)
 	if matchEnvironment {
-		env := strings.Replace(regexEnvironemnt.FindStringSubmatch(text)[1], " ", "", -1)
+		env := strings.Replace(regexEnvironment.FindStringSubmatch(text)[1], " ", "", -1)
 		environmentsToMute := strings.Split(env, ",")
 		return arrayDifference(environments, environmentsToMute), []string{}, nil
 	}
@@ -578,4 +636,16 @@ func arrayDifference(a, b []string) []string {
 		}
 	}
 	return diff
+}
+
+func getUniqueChats(chats []telebot.Chat) []telebot.Chat {
+	uniqueSet := make(map[telebot.Chat]bool, len(chats))
+	for _, x := range chats {
+		uniqueSet[x] = true
+	}
+	uniqueChats := make([]telebot.Chat, 0, len(uniqueSet))
+	for x := range uniqueSet {
+		uniqueChats = append(uniqueChats, x)
+	}
+	return uniqueChats
 }
