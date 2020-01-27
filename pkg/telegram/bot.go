@@ -67,14 +67,13 @@ Available commands:
 // BotChatStore is all the Bot needs to store and read
 type BotChatStore interface {
 	List() ([]telebot.Chat, error)
-	Add(telebot.Chat) error
-	Remove(telebot.Chat) error
-	AddUserToProject(telebot.Chat, string) error
-	AddUserToEnvironment(telebot.Chat, string) error
-	GetUsersForProject(string) ([]telebot.Chat, error)
-	GetUsersForEnvironment(string) ([]telebot.Chat, error)
-	RemoveUserFromProject(telebot.Chat, string) error
-	RemoveUserFromEnvironment(telebot.Chat, string) error
+	AddChat(telebot.Chat, []string, []string) error
+	GetChatInfo(telebot.Chat) (ChatInfo, error)
+	RemoveChat(telebot.Chat) error
+	MuteEnvironments(telebot.Chat, []string, []string) error
+	MuteProjects(telebot.Chat, []string, []string) error
+	UnmuteEnvironment(telebot.Chat, string, []string) error
+	UnmuteProject(telebot.Chat, string, []string) error
 }
 
 // Bot runs the alertmanager telegram
@@ -185,17 +184,21 @@ func WithExtraAdmins(ids ...int) BotOption {
 }
 
 // WithEnvironments allows to define environments that are monitored by Prometheus
-func WithEnvironments(environmentsToUse ...string) BotOption {
+func WithEnvironments(environmentsToUse string) BotOption {
 	return func(b *Bot) {
-		b.environments = append(b.environments, environmentsToUse...)
+		p := strings.Replace(environmentsToUse, " ", "", -1)
+		environmentsToSave := strings.Split(p, ",")
+		b.environments = append(b.environments, environmentsToSave...)
 		b.environments = append(b.environments, "other")
 	}
 }
 
 // WithProjects allows to define projects that are monitored by Prometheus
-func WithProjects(projectsToUse ...string) BotOption {
+func WithProjects(projectsToUse string) BotOption {
 	return func(b *Bot) {
-		b.projects = append(b.projects, projectsToUse...)
+		p := strings.Replace(projectsToUse, " ", "", -1)
+		projectsToSave := strings.Split(p, ",")
+		b.projects = append(b.projects, projectsToSave...)
 		b.projects = append(b.projects, "other")
 	}
 }
@@ -214,7 +217,7 @@ func (b *Bot) isAdminID(id int) bool {
 // Run the telegram and listen to messages send to the telegram
 func (b *Bot) Run(ctx context.Context, webhooks <-chan notify.WebhookMessage) error {
 	commandSuffix := fmt.Sprintf("@%s", b.telegram.Identity.Username)
-
+	//TODO: update
 	commands := map[string]func(message telebot.Message){
 		commandStart:    b.handleStart,
 		commandStop:     b.handleStop,
@@ -315,46 +318,46 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMes
 		case <-ctx.Done():
 			return nil
 		case w := <-webhooks:
-			for _, alert := range w.Alerts {
-				alertEnvironmentName := alert.Labels["environment"]
-				alertProjectName := alert.Labels["project"]
-
-				environmentChats, err := b.chats.GetUsersForEnvironment(alertEnvironmentName)
-				if err != nil {
-					level.Error(b.logger).Log("msg", "failed to get users for provided environment", "err", err)
-				}
-
-				projectChats, err := b.chats.GetUsersForProject(alertProjectName)
-				if err != nil {
-					level.Error(b.logger).Log("msg", "failed to get users for provided project", "err", err)
-				}
-
-				uniqueChats := getUniqueChats(append(environmentChats, projectChats...))
-
-				dataToSend := &template.Data{
-					Receiver:          w.Receiver,
-					Status:            w.Status,
-					Alerts:            []template.Alert{alert},
-					GroupLabels:       w.GroupLabels,
-					CommonLabels:      w.CommonLabels,
-					CommonAnnotations: w.CommonAnnotations,
-					ExternalURL:       w.ExternalURL,
-				}
-
-				out, err := b.templates.ExecuteHTMLString(`{{ template "telegram.default" . }}`, dataToSend)
-				if err != nil {
-					level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
-					continue
-				}
-
-				for _, chat := range uniqueChats {
-					err = b.telegram.SendMessage(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
-					if err != nil {
-						level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
-					}
-				}
-
-			}
+			//for _, alert := range w.Alerts {
+			//	alertEnvironmentName := alert.Labels["environment"]
+			//	alertProjectName := alert.Labels["project"]
+			//
+			//	environmentChats, err := b.chats.GetUsersForEnvironment(alertEnvironmentName)
+			//	if err != nil {
+			//		level.Error(b.logger).Log("msg", "failed to get users for provided environment", "err", err)
+			//	}
+			//
+			//	projectChats, err := b.chats.GetUsersForProject(alertProjectName)
+			//	if err != nil {
+			//		level.Error(b.logger).Log("msg", "failed to get users for provided project", "err", err)
+			//	}
+			//
+			//	uniqueChats := getUniqueChats(append(environmentChats, projectChats...))
+			//
+			//	dataToSend := &template.Data{
+			//		Receiver:          w.Receiver,
+			//		Status:            w.Status,
+			//		Alerts:            []template.Alert{alert},
+			//		GroupLabels:       w.GroupLabels,
+			//		CommonLabels:      w.CommonLabels,
+			//		CommonAnnotations: w.CommonAnnotations,
+			//		ExternalURL:       w.ExternalURL,
+			//	}
+			//
+			//	out, err := b.templates.ExecuteHTMLString(`{{ template "telegram.default" . }}`, dataToSend)
+			//	if err != nil {
+			//		level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
+			//		continue
+			//	}
+			//
+			//	for _, chat := range uniqueChats {
+			//		err = b.telegram.SendMessage(chat, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
+			//		if err != nil {
+			//			level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
+			//		}
+			//	}
+			//
+			//}
 
 			chats, err := b.chats.List()
 			if err != nil {
@@ -391,11 +394,11 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMes
 }
 
 func (b *Bot) handleStart(message telebot.Message) {
-	if err := b.chats.Add(message.Chat); err != nil {
-		level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
-		b.telegram.SendMessage(message.Chat, "I can't add this chat to the subscribers list.", nil)
-		return
-	}
+	//if err := b.chats.Add(message.Chat); err != nil {
+	//	level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
+	//	b.telegram.SendMessage(message.Chat, "I can't add this chat to the subscribers list.", nil)
+	//	return
+	//}
 
 	b.telegram.SendMessage(message.Chat, fmt.Sprintf(responseStart, message.Sender.FirstName), nil)
 	level.Info(b.logger).Log(
@@ -406,11 +409,11 @@ func (b *Bot) handleStart(message telebot.Message) {
 }
 
 func (b *Bot) handleStop(message telebot.Message) {
-	if err := b.chats.Remove(message.Chat); err != nil {
-		level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
-		b.telegram.SendMessage(message.Chat, "I can't remove this chat from the subscribers list.", nil)
-		return
-	}
+	//if err := b.chats.Remove(message.Chat); err != nil {
+	//	level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
+	//	b.telegram.SendMessage(message.Chat, "I can't remove this chat from the subscribers list.", nil)
+	//	return
+	//}
 
 	b.telegram.SendMessage(message.Chat, fmt.Sprintf(responseStop, message.Sender.FirstName), nil)
 	level.Info(b.logger).Log(
@@ -514,36 +517,36 @@ func (b *Bot) handleSilences(message telebot.Message) {
 }
 
 func (b *Bot) handleMute(message telebot.Message) {
-	envToAlarm, prToAlarm, err := parseMuteCommand(message.Text, b.environments, b.projects)
-	if err != nil {
-		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err), nil)
-		return
-	}
+	//envToAlarm, prToAlarm, err := parseMuteCommand(message.Text, b.environments, b.projects)
+	//if err != nil {
+	//	b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err), nil)
+	//	return
+	//}
 
-	if len(envToAlarm) > 0 {
-		for _, env := range envToAlarm {
-			err := b.chats.AddUserToEnvironment(message.Chat, env)
-			if err != nil {
-				level.Warn(b.logger).Log("msg", "failed to subscribe user to environment", "err", err)
-				b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err), nil)
-			}
-		}
-	}
-
-	if len(prToAlarm) > 0 {
-		for _, pr := range prToAlarm {
-			err := b.chats.AddUserToProject(message.Chat, pr)
-			if err != nil {
-				level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
-				b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to project... %v", err), nil)
-			}
-		}
-	}
-
-	if err := b.chats.Remove(message.Chat); err != nil {
-		level.Warn(b.logger).Log("msg", "failed to remove user from getting all notifications", "err", err)
-		b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to remove user from getting all notifications... %v", err), nil)
-	}
+	//if len(envToAlarm) > 0 {
+	//	for _, env := range envToAlarm {
+	//		err := b.chats.AddUserToEnvironment(message.Chat, env)
+	//		if err != nil {
+	//			level.Warn(b.logger).Log("msg", "failed to subscribe user to environment", "err", err)
+	//			b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err), nil)
+	//		}
+	//	}
+	//}
+	//
+	//if len(prToAlarm) > 0 {
+	//	for _, pr := range prToAlarm {
+	//		err := b.chats.AddUserToProject(message.Chat, pr)
+	//		if err != nil {
+	//			level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
+	//			b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to subscribe user to project... %v", err), nil)
+	//		}
+	//	}
+	//}
+	//
+	//if err := b.chats.Remove(message.Chat); err != nil {
+	//	level.Warn(b.logger).Log("msg", "failed to remove user from getting all notifications", "err", err)
+	//	b.telegram.SendMessage(message.Chat, fmt.Sprintf("failed to remove user from getting all notifications... %v", err), nil)
+	//}
 
 	b.telegram.SendMessage(message.Chat, "You were successfully subscribed to environments and/or projects", nil)
 
@@ -598,6 +601,7 @@ func parseMuteCommand(text string, environments []string, projects []string) ([]
 
 	regexProject, err := regexp.Compile(ProjectValuesRegexp)
 	regexEnvironment, err := regexp.Compile(EnvironmentValuesRegexp)
+
 	if matchProjectAndEnvironment {
 		env := strings.Replace(regexEnvironment.FindStringSubmatch(text)[1], " ", "", -1)
 		environmentsToMute := strings.Split(env, ",")

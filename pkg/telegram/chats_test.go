@@ -41,69 +41,58 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestAddUserToNewProject(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "test"}
-	project := "some_project"
-	err := bot.chats.AddUserToProject(chat, project)
+func TestMutingEnvironment(t *testing.T) {
+	allEnvs := []string{"env1", "env2", "env3"}
+	allPrs := []string{"pr1", "pr2"}
+	chat := telebot.Chat{ID:123}
+	err := bot.chats.AddChat(chat, allEnvs, allPrs)
 	assert.Nil(t, err)
+
+	err = bot.chats.MuteEnvironments(chat, []string{"env1"}, allEnvs)
+	assert.Nil(t, err)
+
+	chatInfo, err := bot.chats.GetChatInfo(chat)
+	assert.Nil(t, err)
+	assert.True(t, len(chatInfo.AlertEnvironments) == 2)
+	assert.True(t, len(chatInfo.MutedEnvironments) == 1)
 }
 
-func TestAddUserToExistingProject(t *testing.T) {
-	chat := telebot.Chat{ID:234223424, Username: "test"}
-	project := "some_project"
-	err := bot.chats.AddUserToProject(chat, project)
+func TestMutingProjects(t *testing.T) {
+	allEnvs := []string{"env1", "env2", "env3"}
+	allPrs := []string{"pr1", "pr2"}
+	chat := telebot.Chat{ID:1233}
+	err := bot.chats.AddChat(chat, allEnvs, allPrs)
 	assert.Nil(t, err)
 
-	chat = telebot.Chat{ID:234224, Username: "someone"}
-	err = bot.chats.AddUserToProject(chat, project)
+	err = bot.chats.MuteProjects(chat, []string{"pr1"}, allPrs)
 	assert.Nil(t, err)
+
+	chatInfo, err := bot.chats.GetChatInfo(chat)
+	assert.Nil(t, err)
+	assert.True(t, len(chatInfo.AlertProjects) == 1)
+	assert.True(t, len(chatInfo.MutedProjects) == 1)
 }
 
-func TestGetUserForExistingProject(t *testing.T) {
-	projectName := "some_project"
-	chat1 := telebot.Chat{ID: 232, Username: "test"}
-	err := bot.chats.AddUserToProject(chat1, projectName)
+func TestUnmuteEnvironment(t *testing.T) {
+	allEnvs := []string{"env1", "env2", "env3"}
+	allPrs := []string{"pr1", "pr2"}
+	chat := telebot.Chat{ID:134}
+	err := bot.chats.AddChat(chat, allEnvs, allPrs)
 	assert.Nil(t, err)
 
-	chat2 := telebot.Chat{ID:12, Username: "tess"}
-	err = bot.chats.AddUserToProject(chat2, projectName)
+	err = bot.chats.MuteEnvironments(chat, []string{"env1", "env2"}, allEnvs)
 	assert.Nil(t, err)
 
-	chats, err := bot.chats.GetUsersForProject(projectName)
+	chatInfo, err := bot.chats.GetChatInfo(chat)
 	assert.Nil(t, err)
-	assert.True(t, len(chats) == 2)
-	assert.True(t, chats[0].ID == chat1.ID)
-	assert.True(t, chats[1].ID == chat2.ID)
-}
+	assert.True(t, len(chatInfo.AlertEnvironments) == 1)
+	assert.True(t, len(chatInfo.MutedEnvironments) == 2)
 
-func TestGetUsersForUnknownProject(t *testing.T) {
-	projectName := "awesome_project"
-	chats, err := bot.chats.GetUsersForProject(projectName)
-	assert.Nil(t, err)
-	assert.True(t, len(chats) == 0)
-}
-
-func TestRemoveUserFromProject(t *testing.T) {
-	projectName := "awesomness_project"
-	chat1 := telebot.Chat{ID:12412, Username:"super_user"}
-	chat2 := telebot.Chat{ID:654, Username:"useeeer"}
-
-	err := bot.chats.AddUserToProject(chat1, projectName)
+	err = bot.chats.UnmuteEnvironment(chat, "env1", allEnvs)
 	assert.Nil(t, err)
 
-	err = bot.chats.AddUserToProject(chat2, projectName)
+	chatInfo, err = bot.chats.GetChatInfo(chat)
 	assert.Nil(t, err)
-
-	chats, err := bot.chats.GetUsersForProject(projectName)
-	assert.Nil(t, err)
-	assert.True(t, len(chats) == 2)
-
-	err = bot.chats.RemoveUserFromProject(chat2, projectName)
-	assert.Nil(t, err)
-
-	chats, err = bot.chats.GetUsersForProject(projectName)
-	assert.Nil(t, err)
-	assert.True(t, len(chats) == 1)
-	assert.True(t, chats[0].ID == chat1.ID)
-
+	assert.True(t, len(chatInfo.MutedEnvironments) == 1)
+	assert.True(t, len(chatInfo.AlertEnvironments) == 2)
 }
