@@ -396,11 +396,11 @@ func (b *Bot) handleStart(message telebot.Message) {
 }
 
 func (b *Bot) handleStop(message telebot.Message) {
-	//if err := b.chats.Remove(message.Chat); err != nil {
-	//	level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
-	//	b.telegram.SendMessage(message.Chat, "I can't remove this chat from the subscribers list.", nil)
-	//	return
-	//}
+	if err := b.chats.RemoveChat(message.Chat); err != nil {
+		level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
+		b.telegram.SendMessage(message.Chat, "I can't remove this chat from the subscribers list.", nil)
+		return
+	}
 
 	b.telegram.SendMessage(message.Chat, fmt.Sprintf(responseStop, message.Sender.FirstName), nil)
 	level.Info(b.logger).Log(

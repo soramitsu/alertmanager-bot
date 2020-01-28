@@ -55,16 +55,18 @@ func main() {
 	godotenv.Load()
 
 	config := struct {
-		alertmanager   *url.URL
-		boltPath       string
-		consul         *url.URL
-		listenAddr     string
-		logLevel       string
-		logJSON        bool
-		store          string
-		telegramAdmins []int
-		telegramToken  string
-		templatesPaths []string
+		alertmanager   			*url.URL
+		boltPath       			string
+		consul         			*url.URL
+		listenAddr     			string
+		logLevel       			string
+		logJSON        			bool
+		store          			string
+		telegramAdmins 			[]int
+		telegramToken  			string
+		templatesPaths 			[]string
+		prometheusEnvironments 	string
+		prometheusProjects 		string
 	}{}
 
 	a := kingpin.New("alertmanager-bot", "Bot for Prometheus' Alertmanager")
@@ -116,6 +118,16 @@ func main() {
 		Envar("TEMPLATE_PATHS").
 		Default("/templates/default.tmpl").
 		ExistingFilesVar(&config.templatesPaths)
+
+	a.Flag("prometheus.environments", "Environments defined in Prometheus").
+		Required().
+		Envar("PROMETHEUS_ENVS").
+		StringVar(&config.prometheusEnvironments)
+
+	a.Flag("prometheus.projects", "Projects defined in Prometheus").
+		Required().
+		Envar("PROMETHEUS_PROJECTS").
+		StringVar(&config.prometheusProjects)
 
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
@@ -208,6 +220,8 @@ func main() {
 			telegram.WithRevision(Revision),
 			telegram.WithStartTime(StartTime),
 			telegram.WithExtraAdmins(config.telegramAdmins[1:]...),
+			telegram.WithEnvironments(config.prometheusEnvironments),
+			telegram.WithProjects(config.prometheusProjects),
 		)
 		if err != nil {
 			level.Error(tlogger).Log("msg", "failed to create bot", "err", err)
