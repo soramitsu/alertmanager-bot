@@ -21,26 +21,26 @@ func NewChatStore(kv store.Store) (*ChatStore, error) {
 }
 
 // List all chats saved in the kv backend
-func (s *ChatStore) List() ([]telebot.Chat, error) {
+func (s *ChatStore) List() ([]ChatInfo, error) {
 	kvPairs, err := s.kv.List(telegramChatsDirectory)
 	if err != nil {
 		return nil, err
 	}
 
-	var chats []telebot.Chat
+	var chatInfos []ChatInfo
+
 	for _, kv := range kvPairs {
-		var c telebot.Chat
-		if err := json.Unmarshal(kv.Value, &c); err != nil {
+		var chatInfo ChatInfo
+		if err := json.Unmarshal(kv.Value, &chatInfo); err != nil {
 			return nil, err
 		}
-		chats = append(chats, c)
+		chatInfos = append(chatInfos, chatInfo)
 	}
-
-	return chats, nil
+	return chatInfos, nil
 }
 
 func (s *ChatStore) AddChat(c telebot.Chat, allEnvs []string, allPrs []string) error {
-	newChat := ChatInfo{AlertEnvironments: allEnvs, AlertProjects: allPrs,
+	newChat := ChatInfo{Chat: c,  AlertEnvironments: allEnvs, AlertProjects: allPrs,
 		MutedEnvironments: []string{}, MutedProjects: []string{}}
 	info, err := json.Marshal(newChat)
 	if err != nil {

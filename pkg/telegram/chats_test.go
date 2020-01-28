@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"fmt"
 	"github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/boltdb"
 	"github.com/go-kit/kit/log"
@@ -95,4 +96,22 @@ func TestUnmuteEnvironment(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, len(chatInfo.MutedEnvironments) == 1)
 	assert.True(t, len(chatInfo.AlertEnvironments) == 2)
+}
+
+func TestGettingChatLists(t *testing.T) {
+	allEnvs := []string{"env1", "env2", "env3"}
+	allPrs := []string{"pr1", "pr2"}
+	chat := telebot.Chat{ID:134}
+	err := bot.chats.AddChat(chat, allEnvs, allPrs)
+	assert.Nil(t, err)
+
+	chat = telebot.Chat{ID:32}
+	err = bot.chats.AddChat(chat, allEnvs, allPrs)
+	assert.Nil(t, err)
+
+	chats, err := bot.chats.List()
+	assert.Nil(t, err)
+	for _, chat := range chats {
+		fmt.Println(chat)
+	}
 }
