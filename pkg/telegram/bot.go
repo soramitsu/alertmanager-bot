@@ -54,14 +54,14 @@ Available commands:
 ` + commandChats + ` - List all users and group chats that subscribed.
 ` + commandMute + ` - Mute environments and/or projects.
 ` + commandMuteDel + ` - Delete mute.
-` + commandEnvironments + ` - List all environments.
-` + commandProjects + ` - List all projects.
+` + commandEnvironments + ` - List all environments for alerts.
+` + commandProjects + ` - List all projects for alerts.
 `
 	ProjectAndEnvironmentMuteRegexp  = `/mute environment\[(\w+(\s*,\s*\w+)*)\],[ ]?project\[(\w+(\s*,\s*\w+)*)\]`
 	MuteProjectRegexp = `/mute project\[(\w+(\s*,\s*\w+)*)\]`
 	MuteEnvironmentRegexp = `/mute environment\[(\w+(\s*,\s*\w+)*)\]`
 	ProjectAndEnvironmentUnmuteRegexp  = `/mute_del environment\[(\w+(\s*,\s*\w+)*)\],[ ]?project\[(\w+(\s*,\s*\w+)*)\]`
-	UnmuteProjectRegexp = `/mute_del  project\[(\w+(\s*,\s*\w+)*)\]`
+	UnmuteProjectRegexp = `/mute_del project\[(\w+(\s*,\s*\w+)*)\]`
 	UnmuteEnvironmentRegexp = `/mute_del environment\[(\w+(\s*,\s*\w+)*)\]`
 	EnvironmentValuesRegexp = `environment\[(.*?)\]`
 	ProjectValuesRegexp = `project\[(.*?)\]`
@@ -557,7 +557,7 @@ func (b *Bot) handleMuteDel(message telebot.Message) {
 		}
 	}
 
-	b.telegram.SendMessage(message.Chat, "You were unsuccessfully subscribed from environments and/or projects", nil)
+	b.telegram.SendMessage(message.Chat, "You were successfully unsubscribed from environments and/or projects", nil)
 }
 
 func (b *Bot) handleEnvironments(message telebot.Message) {

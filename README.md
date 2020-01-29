@@ -79,8 +79,21 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 
 
 ###### /mute
+> You were successfully subscribed to environments and/or projects.
 
-###### /muteDel
+Command examples:
+- `/mute environment[env1, env2]`
+- `/mute project[pr1, pr2]`
+- `/mute environment[env1], project[pr2]` 
+
+###### /mute_del
+> You were unsuccessfully subscribed from environments and/or projects.
+
+###### /environments
+> The following environments are available: [env1 env2 env3]
+
+###### /projects
+> The following projects are available: [pr1, pr2]
 
 ###### /help
 
@@ -95,13 +108,19 @@ Right now it supports [Telegram](https://telegram.org/), but I'd like to [add mo
 > [/silences](#silences) - List all silences.  
 > [/chats](#chats) - List all users and group chats that subscribed.
 > [/mute](#mute) - Mute environments and/or projects.
-> [/muteDel](#muteDel) - Delete mute.
+> [/mute_del](#mute_del) - Delete mute for environments/projects.
+> [/environments](#environments) - List all environments for alerts.
+> [/projects](#projects) - List all projects for alerts.
 
 ## Installation
 
 ### Docker
 
 `docker pull metalmatze/alertmanager-bot:0.4.0`
+
+Version with mute commands:
+
+`docker pull kgusman/alertmanager-bot:latest`
 
 Start as a command:
 
@@ -114,6 +133,8 @@ docker run -d \
 	-e 'STORE=bolt' \
 	-e 'TELEGRAM_ADMIN=1234567' \
 	-e 'TELEGRAM_TOKEN=XXX' \
+	-e 'PROMETHEUS_ENVS=env1, env2, env3' \
+	-e 'PROMETHEUS_PROJECTS=pr1, pr2' \
 	-v '/srv/monitoring/alertmanager-bot:/data' \
 	--name alertmanager-bot \
 	metalmatze/alertmanager-bot:0.4.0
@@ -128,6 +149,8 @@ docker run -d \
 	-e 'STORE=consul' \
 	-e 'TELEGRAM_ADMIN=1234567' \
 	-e 'TELEGRAM_TOKEN=XXX' \
+    -e 'PROMETHEUS_ENVS=env1, env2, env3' \
+	-e 'PROMETHEUS_PROJECTS=pr1, pr2' \
 	--name alertmanager-bot \
 	metalmatze/alertmanager-bot:0.4.0
 ```
@@ -143,6 +166,8 @@ alertmanager-bot:
     STORE: bolt
     TELEGRAM_ADMIN: '1234567'
     TELEGRAM_TOKEN: XXX
+    PROMETHEUS_ENVS: env1, env2, env3
+    PROMETHEUS_PROJECTS: pr1, pr2
     TEMPLATE_PATHS: /templates/default.tmpl
   volumes:
   - /srv/monitoring/alertmanager-bot:/data
@@ -159,15 +184,17 @@ If you prefer using configuration management systems (like Ansible) you might be
 ### Configuration
 
 ENV Variable | Description
-|-------------------|------------------------------------------------------|
-| ALERTMANAGER_URL  | Address of the alertmanager, default: `http://localhost:9093` |
-| BOLT_PATH         | Path on disk to the file where the boltdb is stored, default: `/tmp/bot.db` |
-| CONSUL_URL        | The URL to use to connect with Consul, default: `localhost:8500` |
-| LISTEN_ADDR       | Address that the bot listens for webhooks, default: `0.0.0.0:8080` |
-| STORE             | The type of the store to use, choose from bolt (local) or consul (distributed) |
-| TELEGRAM_ADMIN    | The Telegram user id for the admin. The bot will only reply to messages sent from an admin. All other messages are dropped and logged on the bot's console. |
-| TELEGRAM_TOKEN    | Token you get from [@botfather](https://telegram.me/botfather) |
-| TEMPLATE_PATHS    | Path to custom message templates, default template is `./default.tmpl`, in docker - `/templates/default.tmpl` |
+|---------------------|------------------------------------------------------|
+| ALERTMANAGER_URL    | Address of the alertmanager, default: `http://localhost:9093` |
+| BOLT_PATH           | Path on disk to the file where the boltdb is stored, default: `/tmp/bot.db` |
+| CONSUL_URL          | The URL to use to connect with Consul, default: `localhost:8500` |
+| LISTEN_ADDR         | Address that the bot listens for webhooks, default: `0.0.0.0:8080` |
+| STORE               | The type of the store to use, choose from bolt (local) or consul (distributed) |
+| TELEGRAM_ADMIN      | The Telegram user id for the admin. The bot will only reply to messages sent from an admin. All other messages are dropped and logged on the bot's console. |
+| TELEGRAM_TOKEN      | Token you get from [@botfather](https://telegram.me/botfather) |
+| PROMETHEUS_ENVS     | List of environments monitored by Prometheus. String with comma-separated values |
+| PROMETHEUS_PROJECTS | List of projects monitored by Prometheus. String with comma-separated values  |
+| TEMPLATE_PATHS      | Path to custom message templates, default template is `./default.tmpl`, in docker - `/templates/default.tmpl` |
 
 #### Authentication
 
