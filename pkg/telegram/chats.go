@@ -144,3 +144,31 @@ func (s *ChatStore) UnmuteProject(c telebot.Chat, prToUnmute string, allPrs []st
 	}
 	return s.kv.Put(key, updated, nil)
 }
+
+func (s *ChatStore) MutedEnvironments(c telebot.Chat) ([]string, error) {
+	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
+	kvPairs, err := s.kv.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	var chatInfo ChatInfo
+	if err = json.Unmarshal(kvPairs.Value, &chatInfo); err != nil {
+		return nil, err
+	}
+	return chatInfo.MutedEnvironments, nil
+}
+
+func (s *ChatStore) MutedProjects(c telebot.Chat) ([]string, error) {
+	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
+	kvPairs, err := s.kv.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	var chatInfo ChatInfo
+	if err = json.Unmarshal(kvPairs.Value, &chatInfo); err != nil {
+		return nil, err
+	}
+	return chatInfo.MutedProjects, nil
+}
