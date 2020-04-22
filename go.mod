@@ -7,6 +7,7 @@ require (
 	github.com/cenkalti/backoff v2.1.1+incompatible
 	github.com/cespare/xxhash v1.0.0 // indirect
 	github.com/docker/libkv v0.2.1
+	github.com/go-co-op/gocron v0.1.1
 	github.com/go-kit/kit v0.8.0
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/hako/durafmt v0.0.0-20160831152008-ea3ab126a649
@@ -34,16 +35,15 @@ require (
 	github.com/prometheus/alertmanager v0.9.1
 	github.com/prometheus/client_golang v0.9.4
 	github.com/prometheus/procfs v0.0.3 // indirect
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/satori/go.uuid v1.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.4.0
 	github.com/weaveworks/mesh v0.0.0-20160126163632-f74318fb713b // indirect
-	golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6 // indirect
 	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/tucnak/telebot.v2 v2.0.0-20200416071717-f096d2b1adbc
-	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
 go 1.13
