@@ -1,12 +1,12 @@
 package telegram
 
 import (
-	"github.com/tucnak/telebot"
+	"gopkg.in/tucnak/telebot.v2"
 	"strings"
 )
 
 type ChatInfo struct {
-	Chat				telebot.Chat
+	Chat				*telebot.Chat
 	AlertEnvironments	[]string
 	AlertProjects		[]string
 	MutedEnvironments	[]string

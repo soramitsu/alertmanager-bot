@@ -3,12 +3,13 @@ package telegram
 import (
 	"encoding/json"
 	"fmt"
+	"gopkg.in/tucnak/telebot.v2"
 
 	"github.com/docker/libkv/store"
-	"github.com/tucnak/telebot"
 )
 
 const telegramChatsDirectory = "telegram/chats"
+//const telegramMessagesDirectory = "telegram/messages"
 
 // ChatStore writes the users to a libkv store backend
 type ChatStore struct {
@@ -39,7 +40,7 @@ func (s *ChatStore) List() ([]ChatInfo, error) {
 	return chatInfos, nil
 }
 
-func (s *ChatStore) AddChat(c telebot.Chat, allEnvs []string, allPrs []string) error {
+func (s *ChatStore) AddChat(c *telebot.Chat, allEnvs []string, allPrs []string) error {
 	newChat := ChatInfo{Chat: c,  AlertEnvironments: allEnvs, AlertProjects: allPrs,
 		MutedEnvironments: []string{}, MutedProjects: []string{}}
 	info, err := json.Marshal(newChat)
@@ -50,7 +51,7 @@ func (s *ChatStore) AddChat(c telebot.Chat, allEnvs []string, allPrs []string) e
 	return s.kv.Put(key, info, nil)
 }
 
-func (s *ChatStore) GetChatInfo(c telebot.Chat) (ChatInfo, error) {
+func (s *ChatStore) GetChatInfo(c *telebot.Chat) (ChatInfo, error) {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -64,12 +65,12 @@ func (s *ChatStore) GetChatInfo(c telebot.Chat) (ChatInfo, error) {
 	return chatInfo, nil
 }
 
-func (s *ChatStore) RemoveChat(c telebot.Chat) error {
+func (s *ChatStore) RemoveChat(c *telebot.Chat) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	return s.kv.Delete(key)
 }
 
-func (s *ChatStore) MuteEnvironments(c telebot.Chat, envsToMute []string, allEnvs []string) error {
+func (s *ChatStore) MuteEnvironments(c *telebot.Chat, envsToMute []string, allEnvs []string) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -88,7 +89,7 @@ func (s *ChatStore) MuteEnvironments(c telebot.Chat, envsToMute []string, allEnv
 	return s.kv.Put(key, updated, nil)
 }
 
-func (s *ChatStore) MuteProjects(c telebot.Chat, prsToMute []string, allPrs []string) error {
+func (s *ChatStore) MuteProjects(c *telebot.Chat, prsToMute []string, allPrs []string) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -107,7 +108,7 @@ func (s *ChatStore) MuteProjects(c telebot.Chat, prsToMute []string, allPrs []st
 	return s.kv.Put(key, updated, nil)
 }
 
-func (s *ChatStore) UnmuteEnvironment(c telebot.Chat, envToUnmute string, allEnvs []string) error {
+func (s *ChatStore) UnmuteEnvironment(c *telebot.Chat, envToUnmute string, allEnvs []string) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -126,7 +127,7 @@ func (s *ChatStore) UnmuteEnvironment(c telebot.Chat, envToUnmute string, allEnv
 	return s.kv.Put(key, updated, nil)
 }
 
-func (s *ChatStore) UnmuteProject(c telebot.Chat, prToUnmute string, allPrs []string) error {
+func (s *ChatStore) UnmuteProject(c *telebot.Chat, prToUnmute string, allPrs []string) error {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -145,7 +146,7 @@ func (s *ChatStore) UnmuteProject(c telebot.Chat, prToUnmute string, allPrs []st
 	return s.kv.Put(key, updated, nil)
 }
 
-func (s *ChatStore) MutedEnvironments(c telebot.Chat) ([]string, error) {
+func (s *ChatStore) MutedEnvironments(c *telebot.Chat) ([]string, error) {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {
@@ -159,7 +160,7 @@ func (s *ChatStore) MutedEnvironments(c telebot.Chat) ([]string, error) {
 	return chatInfo.MutedEnvironments, nil
 }
 
-func (s *ChatStore) MutedProjects(c telebot.Chat) ([]string, error) {
+func (s *ChatStore) MutedProjects(c *telebot.Chat) ([]string, error) {
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	kvPairs, err := s.kv.Get(key)
 	if err != nil {

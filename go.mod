@@ -30,19 +30,19 @@ require (
 	github.com/mitchellh/mapstructure v0.0.0-20170523030023-d0303fe80992 // indirect
 	github.com/oklog/run v1.0.0
 	github.com/pascaldekloe/goe v0.1.0 // indirect
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/alertmanager v0.9.1
 	github.com/prometheus/client_golang v0.9.4
 	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/satori/go.uuid v1.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.3.0
-	github.com/tucnak/telebot v0.0.0-20170912115553-00cebf376d79
 	github.com/weaveworks/mesh v0.0.0-20160126163632-f74318fb713b // indirect
 	golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6 // indirect
 	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	gopkg.in/tucnak/telebot.v2 v2.0.0-20200416071717-f096d2b1adbc
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
