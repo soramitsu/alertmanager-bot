@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopkg.in/tucnak/telebot.v2"
+	"strings"
+	"time"
 
 	"github.com/docker/libkv/store"
 )
 
 const telegramChatsDirectory = "telegram/chats"
-//const telegramMessagesDirectory = "telegram/messages"
+const telegramMessagesDirectory = "telegram/messages"
 
 // ChatStore writes the users to a libkv store backend
 type ChatStore struct {
@@ -49,6 +51,66 @@ func (s *ChatStore) AddChat(c *telebot.Chat, allEnvs []string, allPrs []string) 
 	}
 	key := fmt.Sprintf("%s/%d", telegramChatsDirectory, c.ID)
 	return s.kv.Put(key, info, nil)
+}
+
+func (s *ChatStore) AddMessage(m *telebot.Message) error {
+	messages, err := s.GetAllMessages()
+	if err != nil {
+		return err
+	}
+	messages = append(messages, *m)
+	info, err := json.Marshal(messages)
+	if err != nil {
+		return nil
+	}
+	return s.kv.Put(telegramMessagesDirectory, info, nil)
+}
+
+func (s *ChatStore) GetAllMessages() ([]telebot.Message, error) {
+	kvPair, err := s.kv.Get(telegramMessagesDirectory)
+	if err != nil {
+		if 0 == strings.Compare("Key not found in store", err.Error()) {
+			return []telebot.Message{}, nil
+		} else {
+			return nil, err
+		}
+	}
+	var messages []telebot.Message
+	if err = json.Unmarshal(kvPair.Value, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func (s *ChatStore) DeleteAllMessages() error {
+	return s.kv.Delete(telegramMessagesDirectory)
+}
+
+func (s *ChatStore) GetMessagesForPeriodInMinutes(minutes float64) ([]telebot.Message, error) {
+	messages, err := s.GetAllMessages()
+	if err != nil {
+		return nil, err
+	}
+	var messagesToDelete []telebot.Message
+	var messagesToSave []telebot.Message
+	currentTime := time.Now().UTC()
+	for _, msg := range messages {
+		timeDiff := currentTime.Sub(msg.Time().UTC())
+		if timeDiff.Minutes() >= minutes {
+			messagesToDelete = append(messagesToDelete, msg)
+		} else {
+			messagesToSave = append(messagesToSave, msg)
+		}
+	}
+	info, err := json.Marshal(messagesToSave)
+	if err != nil {
+		return nil, err
+	}
+	err = s.kv.Put(telegramMessagesDirectory, info, nil)
+	if err != nil {
+		return nil, err
+	}
+	return messagesToDelete, nil
 }
 
 func (s *ChatStore) GetChatInfo(c *telebot.Chat) (ChatInfo, error) {

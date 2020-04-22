@@ -83,6 +83,10 @@ type BotChatStore interface {
 	UnmuteProject(*telebot.Chat, string, []string) error
 	MutedEnvironments(*telebot.Chat) ([]string, error)
 	MutedProjects(*telebot.Chat) ([]string, error)
+	AddMessage(*telebot.Message) error
+	GetAllMessages() ([]telebot.Message, error)
+	GetMessagesForPeriodInMinutes(float64) ([]telebot.Message, error)
+	DeleteAllMessages() error
 }
 
 // Bot runs the alertmanager telegram
@@ -327,6 +331,22 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan notify.WebhookMessage) er
 	return gr.Run()
 }
 
+func (b *Bot) deleteBotMessagesForPeriod() error {
+	var minutes float64 = 10 // TODO: get period from config
+	messages, err := b.chats.GetMessagesForPeriodInMinutes(minutes)
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range messages {
+		err = b.telegram.Delete(&msg)
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "cannot delete message", err)
+		}
+	}
+	return nil
+}
+
 // sendWebhook sends messages received via webhook to all subscribed chats
 func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMessage) error {
 	for {
@@ -382,9 +402,13 @@ func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMes
 					level.Warn(b.logger).Log("msg", "failed to template alerts", "err", err)
 					continue
 				}
-				_, err = b.telegram.Send(&telebot.Chat{ID: k.ID}, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
+				msg, err := b.telegram.Send(&telebot.Chat{ID: k.ID}, b.truncateMessage(out), &telebot.SendOptions{ParseMode: telebot.ModeHTML})
 				if err != nil {
 					level.Warn(b.logger).Log("msg", "failed to send message to subscribed chat", "err", err)
+				}
+				err = b.chats.AddMessage(msg)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to save response message to store", err)
 				}
 			}
 		}
