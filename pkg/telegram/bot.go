@@ -98,6 +98,8 @@ type Bot struct {
 	projects				[]string
 	environmentsAndOther 	[]string
 	projectsAndOther		[]string
+	fetchPeriod				float64
+	deletePeriod			float64
 	alertmanager 			*url.URL
 	templates    			*template.Template
 	chats        			BotChatStore
@@ -223,6 +225,20 @@ func WithProjects(projectsToUse string) BotOption {
 	}
 }
 
+// WithFetchPeriod allows to define scheduler period for fetching messages from store
+func WithFetchPeriod(fetchPeriod float64) BotOption {
+	return func(b *Bot) {
+		b.fetchPeriod = fetchPeriod
+	}
+}
+
+// WithDeletePeriod allows to define period of deleting messages
+func WithDeletePeriod(deletePeriod float64) BotOption {
+	return func(b *Bot) {
+		b.deletePeriod = deletePeriod
+	}
+}
+
 // SendAdminMessage to the admin's ID with a message
 func (b *Bot) SendAdminMessage(adminID int, message string) {
 	b.telegram.Send(&telebot.User{ID: adminID}, message, nil)
@@ -232,22 +248,6 @@ func (b *Bot) SendAdminMessage(adminID int, message string) {
 func (b *Bot) isAdminID(id int) bool {
 	i := sort.SearchInts(b.admins, id)
 	return i < len(b.admins) && b.admins[i] == id
-}
-
-func (b *Bot) deleteBotMessagesForPeriod() error {
-	var minutes float64 = 1 // TODO: get period from config
-	messages, err := b.chats.GetMessagesForPeriodInMinutes(minutes)
-	if err != nil {
-		return err
-	}
-
-	for _, msg := range messages {
-		err = b.telegram.Delete(&msg)
-		if err != nil {
-			level.Warn(b.logger).Log("msg", "cannot delete message", err)
-		}
-	}
-	return nil
 }
 
 // Run the telegram and listen to messages send to the telegram
@@ -346,9 +346,8 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan notify.WebhookMessage) er
 	}
 
 	scheduler := cron.New(cron.WithLocation(time.UTC))
-	scheduler.AddFunc("@every 2m", func() {
-		var minutes float64 = 1 // TODO: get period from config
-		messages, err := b.chats.GetMessagesForPeriodInMinutes(minutes)
+	scheduler.AddFunc(fmt.Sprintf("@every %fm", b.fetchPeriod), func() {
+		messages, err := b.chats.GetMessagesForPeriodInMinutes(b.deletePeriod)
 		if err != nil {
 			level.Warn(b.logger).Log("msg", "cannot find messages to delete", err)
 		}
@@ -364,7 +363,6 @@ func (b *Bot) Run(ctx context.Context, webhooks <-chan notify.WebhookMessage) er
 
 	return gr.Run()
 }
-
 
 // sendWebhook sends messages received via webhook to all subscribed chats
 func (b *Bot) sendWebhook(ctx context.Context, webhooks <-chan notify.WebhookMessage) error {
