@@ -613,7 +613,7 @@ func (b *Bot) handleMute(message *telebot.Message) {
 			}
 		}
 
-		b.telegram.Send(message.Chat, "You were successfully subscribed to environments and/or projects")
+		b.telegram.Send(message.Chat, "You were successfully muted environments and/or projects")
 	}
 }
 
@@ -652,7 +652,7 @@ func (b *Bot) handleMuteDel(message *telebot.Message) {
 			}
 		}
 
-		b.telegram.Send(message.Chat, "You were successfully unsubscribed from environments and/or projects")
+		b.telegram.Send(message.Chat, "You were successfully delete mute from environments and/or projects")
 	}
 }
 
