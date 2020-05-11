@@ -397,33 +397,51 @@ func contains(values []string, value string) bool {
 }
 
 func (b *Bot) handleStart(message *telebot.Message) {
-	if err := b.chats.AddChat(message.Chat, b.environmentsAndOther, b.projectsAndOther); err != nil {
-		level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
-		b.telegram.Send(message.Chat, "I can't add this chat to the subscribers list.")
-		return
-	}
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		if err := b.chats.AddChat(message.Chat, b.environmentsAndOther, b.projectsAndOther); err != nil {
+			level.Warn(b.logger).Log("msg", "failed to add chat to chat store", "err", err)
+			b.telegram.Send(message.Chat, "I can't add this chat to the subscribers list.")
+			return
+		}
 
-	b.telegram.Send(message.Chat, fmt.Sprintf(responseStart, message.Sender.FirstName))
-	level.Info(b.logger).Log(
-		"user subscribed",
-		"username", message.Sender.Username,
-		"user_id", message.Sender.ID,
-	)
+		b.telegram.Send(message.Chat, fmt.Sprintf(responseStart, message.Sender.FirstName))
+		level.Info(b.logger).Log(
+			"user subscribed",
+			"username", message.Sender.Username,
+			"user_id", message.Sender.ID,
+		)
+	}
 }
 
 func (b *Bot) handleStop(message *telebot.Message) {
-	if err := b.chats.RemoveChat(message.Chat); err != nil {
-		level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
-		b.telegram.Send(message.Chat, "I can't remove this chat from the subscribers list.")
-		return
-	}
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		if err := b.chats.RemoveChat(message.Chat); err != nil {
+			level.Warn(b.logger).Log("msg", "failed to remove chat from chat store", "err", err)
+			b.telegram.Send(message.Chat, "I can't remove this chat from the subscribers list.")
+			return
+		}
 
-	b.telegram.Send(message.Chat, fmt.Sprintf(responseStop, message.Sender.FirstName))
-	level.Info(b.logger).Log(
-		"user unsubscribed",
-		"username", message.Sender.Username,
-		"user_id", message.Sender.ID,
-	)
+		b.telegram.Send(message.Chat, fmt.Sprintf(responseStop, message.Sender.FirstName))
+		level.Info(b.logger).Log(
+			"user unsubscribed",
+			"username", message.Sender.Username,
+			"user_id", message.Sender.ID,
+		)
+	}
 }
 
 func (b *Bot) handleHelp(message *telebot.Message) {
@@ -440,182 +458,271 @@ func (b *Bot) handleHelp(message *telebot.Message) {
 }
 
 func (b *Bot) handleChats(message *telebot.Message) {
-	chats, err := b.chats.List()
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to list chats from chat store", "err", err)
-		b.telegram.Send(message.Chat, "I can't list the subscribed chats.")
-		return
-	}
-
-	list := ""
-	for _, chat := range chats {
-		if chat.Chat.Type == telebot.ChatGroup {
-			list = list + fmt.Sprintf("@%s\n", chat.Chat.Title)
-		} else {
-			list = list + fmt.Sprintf("@%s\n", chat.Chat.Username)
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		chats, err := b.chats.List()
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to list chats from chat store", "err", err)
+			b.telegram.Send(message.Chat, "I can't list the subscribed chats.")
+			return
 		}
-	}
 
-	b.telegram.Send(message.Chat, "Currently these chat have subscribed:\n"+list)
+		list := ""
+		for _, chat := range chats {
+			if chat.Chat.Type == telebot.ChatGroup {
+				list = list + fmt.Sprintf("@%s\n", chat.Chat.Title)
+			} else {
+				list = list + fmt.Sprintf("@%s\n", chat.Chat.Username)
+			}
+		}
+
+		b.telegram.Send(message.Chat, "Currently these chat have subscribed:\n"+list)
+	}
 }
 
 func (b *Bot) handleStatus(message *telebot.Message) {
-	s, err := alertmanager.Status(b.logger, b.alertmanager.String())
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to get status", "err", err)
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to get status... %v", err))
-		return
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		s, err := alertmanager.Status(b.logger, b.alertmanager.String())
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to get status", "err", err)
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to get status... %v", err))
+			return
+		}
+
+		uptime := durafmt.Parse(time.Since(s.Data.Uptime))
+		uptimeBot := durafmt.Parse(time.Since(b.startTime))
+
+		b.telegram.Send(
+			message.Chat,
+			fmt.Sprintf(
+				"*AlertManager*\nVersion: %s\nUptime: %s\n*AlertManager Bot*\nVersion: %s\nUptime: %s",
+				s.Data.VersionInfo.Version,
+				uptime,
+				b.revision,
+				uptimeBot,
+			),
+			&telebot.SendOptions{ParseMode: telebot.ModeMarkdown},
+		)
 	}
-
-	uptime := durafmt.Parse(time.Since(s.Data.Uptime))
-	uptimeBot := durafmt.Parse(time.Since(b.startTime))
-
-	b.telegram.Send(
-		message.Chat,
-		fmt.Sprintf(
-			"*AlertManager*\nVersion: %s\nUptime: %s\n*AlertManager Bot*\nVersion: %s\nUptime: %s",
-			s.Data.VersionInfo.Version,
-			uptime,
-			b.revision,
-			uptimeBot,
-		),
-		&telebot.SendOptions{ParseMode: telebot.ModeMarkdown},
-	)
 }
 
 func (b *Bot) handleAlerts(message *telebot.Message) {
-	alerts, err := alertmanager.ListAlerts(b.logger, b.alertmanager.String())
-	if err != nil {
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to list alerts... %v", err))
-		return
-	}
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		alerts, err := alertmanager.ListAlerts(b.logger, b.alertmanager.String())
+		if err != nil {
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to list alerts... %v", err))
+			return
+		}
 
-	if len(alerts) == 0 {
-		b.telegram.Send(message.Chat, "No alerts right now! 🎉")
-		return
-	}
+		if len(alerts) == 0 {
+			b.telegram.Send(message.Chat, "No alerts right now! 🎉")
+			return
+		}
 
-	out, err := b.tmplAlerts(alerts...)
-	if err != nil {
-		return
-	}
+		out, err := b.tmplAlerts(alerts...)
+		if err != nil {
+			return
+		}
 
-	_, err = b.telegram.Send(message.Chat, b.truncateMessage(out), &telebot.SendOptions{
-		ParseMode: telebot.ModeHTML,
-	})
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to send message", "err", err)
+		_, err = b.telegram.Send(message.Chat, b.truncateMessage(out), &telebot.SendOptions{
+			ParseMode: telebot.ModeHTML,
+		})
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to send message", "err", err)
+		}
 	}
 }
 
 func (b *Bot) handleSilences(message *telebot.Message) {
-	silences, err := alertmanager.ListSilences(b.logger, b.alertmanager.String())
-	if err != nil {
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to list silences... %v", err))
-		return
-	}
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		silences, err := alertmanager.ListSilences(b.logger, b.alertmanager.String())
+		if err != nil {
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to list silences... %v", err))
+			return
+		}
 
-	if len(silences) == 0 {
-		b.telegram.Send(message.Chat, "No silences right now.")
-		return
-	}
+		if len(silences) == 0 {
+			b.telegram.Send(message.Chat, "No silences right now.")
+			return
+		}
 
-	var out string
-	for _, silence := range silences {
-		out = out + alertmanager.SilenceMessage(silence) + "\n"
-	}
+		var out string
+		for _, silence := range silences {
+			out = out + alertmanager.SilenceMessage(silence) + "\n"
+		}
 
-	b.telegram.Send(message.Chat, out, &telebot.SendOptions{ParseMode: telebot.ModeMarkdown})
+		b.telegram.Send(message.Chat, out, &telebot.SendOptions{ParseMode: telebot.ModeMarkdown})
+	}
 }
 
 func (b *Bot) handleMute(message *telebot.Message) {
-	envsToMute, prsToMute, err := parseMuteCommand(message.Text)
-	if err != nil {
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err))
-		return
-	}
-
-	if len(envsToMute) > 0 {
-		err := b.chats.MuteEnvironments(message.Chat, envsToMute, b.environmentsAndOther)
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		envsToMute, prsToMute, err := parseMuteCommand(message.Text)
 		if err != nil {
-			level.Warn(b.logger).Log("msg", "failed to subscribe user to environments", "err", err)
-			b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err))
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse mute command... %v", err))
+			return
 		}
-	}
 
-	if len(prsToMute) > 0 {
-		err := b.chats.MuteProjects(message.Chat, prsToMute, b.projectsAndOther)
-		if err != nil {
-			level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
-			b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to proj... %v", err))
+		if len(envsToMute) > 0 {
+			err := b.chats.MuteEnvironments(message.Chat, envsToMute, b.environmentsAndOther)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to environments", "err", err)
+				b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to environments... %v", err))
+			}
 		}
+
+		if len(prsToMute) > 0 {
+			err := b.chats.MuteProjects(message.Chat, prsToMute, b.projectsAndOther)
+			if err != nil {
+				level.Warn(b.logger).Log("msg", "failed to subscribe user to project", "err", err)
+				b.telegram.Send(message.Chat, fmt.Sprintf("failed to subscribe user to proj... %v", err))
+			}
+		}
+
+		b.telegram.Send(message.Chat, "You were successfully subscribed to environments and/or projects")
 	}
-
-	b.telegram.Send(message.Chat, "You were successfully subscribed to environments and/or projects")
-
 }
 
 func (b *Bot) handleMuteDel(message *telebot.Message) {
-	envsToUnmute, prsToUnmute, err := parseUnmuteCommand(message.Text)
-	if err != nil {
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse unmute command... %v", err))
-		return
-	}
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		envsToUnmute, prsToUnmute, err := parseUnmuteCommand(message.Text)
+		if err != nil {
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to parse unmute command... %v", err))
+			return
+		}
 
-	if len(envsToUnmute) > 0 {
-		for _, env := range envsToUnmute {
-			err := b.chats.UnmuteEnvironment(message.Chat, env, b.environmentsAndOther)
-			if err != nil {
-				level.Warn(b.logger).Log("msg", "failed to unsubscribe user from an environment", "err", err)
-				b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from an environment... %v", err))
+		if len(envsToUnmute) > 0 {
+			for _, env := range envsToUnmute {
+				err := b.chats.UnmuteEnvironment(message.Chat, env, b.environmentsAndOther)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to unsubscribe user from an environment", "err", err)
+					b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from an environment... %v", err))
+				}
 			}
 		}
-	}
 
-	if len(prsToUnmute) > 0 {
-		for _, pr := range prsToUnmute {
-			err := b.chats.UnmuteProject(message.Chat, pr, b.projectsAndOther)
-			if err != nil {
-				level.Warn(b.logger).Log("msg", "failed to unsubscribe user from a project", "err", err)
-				b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from a project... %v", err))
+		if len(prsToUnmute) > 0 {
+			for _, pr := range prsToUnmute {
+				err := b.chats.UnmuteProject(message.Chat, pr, b.projectsAndOther)
+				if err != nil {
+					level.Warn(b.logger).Log("msg", "failed to unsubscribe user from a project", "err", err)
+					b.telegram.Send(message.Chat, fmt.Sprintf("failed to unsubscribe user from a project... %v", err))
+				}
 			}
 		}
-	}
 
-	b.telegram.Send(message.Chat, "You were successfully unsubscribed from environments and/or projects")
+		b.telegram.Send(message.Chat, "You were successfully unsubscribed from environments and/or projects")
+	}
 }
 
 func (b *Bot) handleEnvironments(message *telebot.Message) {
-	b.telegram.Send(message.Chat, fmt.Sprintf("The following environments are available: %s", b.environmentsAndOther))
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		b.telegram.Send(message.Chat, fmt.Sprintf("The following environments are available: %s", b.environmentsAndOther))
+	}
 }
 
 func (b *Bot) handleProjects(message *telebot.Message) {
-	b.telegram.Send(message.Chat, fmt.Sprintf("The following projects are available: %s", b.projectsAndOther))
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
+	} else {
+		b.telegram.Send(message.Chat, fmt.Sprintf("The following projects are available: %s", b.projectsAndOther))
+	}
 }
 
 func (b *Bot) handleMutedEnvs(message *telebot.Message) {
-	mutedEnvs, err := b.chats.MutedEnvironments(message.Chat)
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to get muted environments", "err", err)
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted environments... %v", err))
-	}
-	if len(mutedEnvs) > 0 {
-		b.telegram.Send(message.Chat, fmt.Sprintf("Muted environments:  %s", mutedEnvs))
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
 	} else {
-		b.telegram.Send(message.Chat, "No muted environments")
+		mutedEnvs, err := b.chats.MutedEnvironments(message.Chat)
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to get muted environments", "err", err)
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted environments... %v", err))
+		}
+		if len(mutedEnvs) > 0 {
+			b.telegram.Send(message.Chat, fmt.Sprintf("Muted environments:  %s", mutedEnvs))
+		} else {
+			b.telegram.Send(message.Chat, "No muted environments")
+		}
 	}
 }
 
 func (b *Bot) handleMutedPrs(message *telebot.Message) {
-	mutedPrs, err := b.chats.MutedProjects(message.Chat)
-	if err != nil {
-		level.Warn(b.logger).Log("msg", "failed to get muted projects", "err", err)
-		b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted projects... %v", err))
-	}
-	if len(mutedPrs) > 0 {
-		b.telegram.Send(message.Chat, fmt.Sprintf("Muted projects:  %s", mutedPrs))
+	if err := b.checkMessage(message); err != nil {
+		level.Info(b.logger).Log(
+			"msg", "failed to process message",
+			"err", err,
+			"sender_id", message.Sender.ID,
+			"sender_username", message.Sender.Username,
+		)
 	} else {
-		b.telegram.Send(message.Chat, "No muted projects")
+		mutedPrs, err := b.chats.MutedProjects(message.Chat)
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to get muted projects", "err", err)
+			b.telegram.Send(message.Chat, fmt.Sprintf("failed to get muted projects... %v", err))
+		}
+		if len(mutedPrs) > 0 {
+			b.telegram.Send(message.Chat, fmt.Sprintf("Muted projects:  %s", mutedPrs))
+		} else {
+			b.telegram.Send(message.Chat, "No muted projects")
+		}
 	}
 }
 
