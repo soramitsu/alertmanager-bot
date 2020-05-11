@@ -169,7 +169,7 @@ Usage within docker-compose:
 
 ```yml
 alertmanager-bot:
-  image: metalmatze/alertmanager-bot:0.4.0
+  image: kgusman/alertmanager-bot:1.1.0
   environment:
     ALERTMANAGER_URL: http://alertmanager:9093
     BOLT_PATH: /data/bot.db
