@@ -67,6 +67,8 @@ func main() {
 		templatesPaths 			[]string
 		prometheusEnvironments 	string
 		prometheusProjects 		string
+		fetchMessagesPeriod		float64
+		deleteMessagesPeriod	float64
 	}{}
 
 	a := kingpin.New("alertmanager-bot", "Bot for Prometheus' Alertmanager")
@@ -128,6 +130,16 @@ func main() {
 		Required().
 		Envar("PROMETHEUS_PROJECTS").
 		StringVar(&config.prometheusProjects)
+
+	a.Flag("fetch.period", "Scheduler period for fetching messages from store (in minutes)").
+		Required().
+		Envar("FETCH_PERIOD").
+		Float64Var(&config.fetchMessagesPeriod)
+
+	a.Flag("delete.period", "Time after messages have to be deleted (in minutes)").
+		Required().
+		Envar("DELETE_PERIOD").
+		Float64Var(&config.deleteMessagesPeriod)
 
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
@@ -222,6 +234,8 @@ func main() {
 			telegram.WithExtraAdmins(config.telegramAdmins[1:]...),
 			telegram.WithEnvironments(config.prometheusEnvironments),
 			telegram.WithProjects(config.prometheusProjects),
+			telegram.WithFetchPeriod(config.fetchMessagesPeriod),
+			telegram.WithDeletePeriod(config.deleteMessagesPeriod),
 		)
 		if err != nil {
 			level.Error(tlogger).Log("msg", "failed to create bot", "err", err)
